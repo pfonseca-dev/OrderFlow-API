@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.database.session import Base
 from app.models.order import Order  # noqa: F401
+from app.models.product import Product  # noqa: F401
 
 # importe seus models aqui para o Alembic enxergá-los.
 # Exemplo:
