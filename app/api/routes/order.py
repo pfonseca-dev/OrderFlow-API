@@ -24,3 +24,13 @@ DbSession = Annotated[Session, Depends(get_db)]
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=OrderResponse)
 def create(db: DbSession, order_data: OrderCreate) -> OrderResponse:
     return service.create(db, order_data)
+
+
+@router.get("", response_model=list[OrderResponse])
+def list_orders(db: DbSession) -> list[OrderResponse]:
+    return service.list(db)
+
+
+@router.get("/{order_id}", response_model=OrderResponse)
+def get_order(db: DbSession, order_id: int) -> OrderResponse:
+    return service.get_by_id(db, order_id)

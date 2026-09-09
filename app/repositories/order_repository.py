@@ -19,3 +19,11 @@ class OrderRepository:
         db.refresh(order)
 
         return order
+
+    def list_all(self, db: Session) -> list[Order]:
+        statement = select(Order).order_by(Order.id)
+
+        return list(db.scalars(statement).all())
+
+    def get_by_id(self, db: Session, order_id: int) -> Order | None:
+        return db.get(Order, order_id)
