@@ -237,3 +237,101 @@ def test_delivery_distance_is_zero_for_same_location() -> None:
     )
 
     assert distance == Decimal("0.00")
+
+
+def test_list_orders() -> None:
+    product_id = create_product(
+        "List Orders Product",
+        "20.00",
+    )
+
+    create_response = client.post(
+        "/api/orders",
+        json={
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 2,
+                }
+            ],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    response = client.get("/api/orders")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert isinstance(data, list)
+    assert len(data) > 0
+
+    order = data[-1]
+
+    assert order["status"] == "pending"
+    assert len(order["items"]) == 1
+
+    assert Decimal(order["items"][0]["unit_price"]) == Decimal("20.00")
+    assert Decimal(order["items"][0]["subtotal"]) == Decimal("40.00")
+
+    assert Decimal(order["subtotal"]) == Decimal("40.00")
+    assert Decimal(order["delivery_fee"]) > Decimal("0.00")
+    assert Decimal(order["total"]) == (
+        Decimal(order["subtotal"]) + Decimal(order["delivery_fee"])
+    )
+
+
+def test_get_order_by_id() -> None:
+    product_id = create_product(
+        "Get Order Product",
+        "15.50",
+    )
+
+    create_response = client.post(
+        "/api/orders",
+        json={
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 2,
+                }
+            ],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
+        },
+    )
+
+    assert create_response.status_code == 201
+
+    created_order = create_response.json()
+    order_id = created_order["id"]
+
+    response = client.get(f"/api/orders/{order_id}")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == order_id
+    assert data["status"] == "pending"
+
+    assert len(data["items"]) == 1
+
+    assert data["items"][0]["product_id"] == product_id
+    assert data["items"][0]["quantity"] == 2
+    assert Decimal(data["items"][0]["unit_price"]) == Decimal("15.50")
+    assert Decimal(data["items"][0]["subtotal"]) == Decimal("31.00")
+
+    assert Decimal(data["subtotal"]) == Decimal("31.00")
+    assert Decimal(data["delivery_fee"]) > Decimal("0.00")
+    assert Decimal(data["total"]) == (
+        Decimal(data["subtotal"]) + Decimal(data["delivery_fee"])
+    )
