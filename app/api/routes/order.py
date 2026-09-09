@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database.dependencies import get_db
 from app.repositories.order_repository import OrderRepository
 from app.schemas.order import OrderCreate, OrderResponse
+from app.services.delivery_service import DeliveryService
 from app.services.order_service import OrderService
 
 router = APIRouter(
@@ -14,7 +15,8 @@ router = APIRouter(
 )
 
 repository = OrderRepository()
-service = OrderService(repository)
+delivery_service = DeliveryService()
+service = OrderService(repository, delivery_service)
 
 DbSession = Annotated[Session, Depends(get_db)]
 
