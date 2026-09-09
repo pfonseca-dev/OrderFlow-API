@@ -34,6 +34,10 @@ class Order(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    delivery_latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    delivery_longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
+    delivery_distance_km: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    delivery_fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     items: Mapped[list["OrderItem"]] = relationship(
         back_populates="order", cascade="all, delete-orphan"
     )

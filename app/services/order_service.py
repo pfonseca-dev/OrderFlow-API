@@ -3,15 +3,18 @@ from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.product import Product
 from app.repositories.order_repository import OrderRepository
 from app.schemas.order import OrderCreate, OrderItemResponse, OrderResponse
+from app.services.delivery_service import DeliveryService
 
 
 class OrderService:
-    def __init__(self, repository: OrderRepository) -> None:
+    def __init__(self, repository: OrderRepository, delivery: DeliveryService) -> None:
         self.repository = repository
+        self.delivery = delivery
 
     def create(self, db: Session, order_data: OrderCreate) -> OrderResponse:
         product_ids = [item.product_id for item in order_data.items]
@@ -22,16 +25,30 @@ class OrderService:
 
         self._validate_products(product_ids, product_by_id)
 
-        order = Order()
+        delivery_distance = self.delivery.calculate_distance(
+            original_latitude=Decimal(str(settings.restaurant_latitude)),
+            original_longitude=Decimal(str(settings.restaurant_longitude)),
+            destination_latitude=order_data.delivery.latitude,
+            destination_longitude=order_data.delivery.longitude,
+        )
+
+        delivery_fee = self.delivery.calculate_fee(delivery_distance)
+
+        order = Order(
+            delivery_latitude=order_data.delivery.latitude,
+            delivery_longitude=order_data.delivery.longitude,
+            delivery_distance_km=delivery_distance,
+            delivery_fee=delivery_fee,
+        )
 
         response_items: list[OrderItemResponse] = []
-        total = Decimal("0.00")
+        subtotal = Decimal("0.00")
 
         for item_data in order_data.items:
             product = product_by_id[item_data.product_id]
 
             unit_price = product.price
-            subtotal = unit_price * item_data.quantity
+            item_subtotal = unit_price * item_data.quantity
 
             order_item = OrderItem(
                 product_id=product.id,
@@ -46,11 +63,13 @@ class OrderService:
                     product_id=product.id,
                     quantity=item_data.quantity,
                     unit_price=unit_price,
-                    subtotal=subtotal,
+                    subtotal=item_subtotal,
                 )
             )
 
-            total += subtotal
+            subtotal += item_subtotal
+
+        total = subtotal + delivery_fee
 
         order = self.repository.create(db, order)
 
@@ -58,7 +77,9 @@ class OrderService:
             id=order.id,
             status=OrderStatus(order.status),
             items=response_items,
-            subtotal=total,
+            subtotal=subtotal,
+            delivery_distance_km=order.delivery_distance_km,
+            delivery_fee=order.delivery_fee,
             total=total,
         )
 
