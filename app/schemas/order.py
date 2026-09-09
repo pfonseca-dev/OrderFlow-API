@@ -7,7 +7,7 @@ from app.models.order import OrderStatus
 
 class OrderItemCreate(BaseModel):
     product_id: int = Field(gt=0)
-    quantity: int = Field(gt=0)
+    quantity: int = Field(gt=0, le=2147483647)
 
 
 class DeliveryLocation(BaseModel):

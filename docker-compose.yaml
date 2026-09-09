@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: orderflow-db
+    environment:
+      POSTGRES_DB: orderflow
+      POSTGRES_USER: orderflow
+      POSTGRES_PASSWORD: orderflow
+    ports:
+      - "5433:5432"
+    volumes:
+      - orderflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderflow -d orderflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+    container_name: orderflow-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: "OrderFlow API"
+      PORT: 8000
+      DATABASE_URL: "postgresql+psycopg://orderflow:orderflow@db:5432/orderflow"
+      RESTAURANT_LATITUDE: -23.550520
+      RESTAURANT_LONGITUDE: -46.633308
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+
+volumes:
+  orderflow_postgres_data:
