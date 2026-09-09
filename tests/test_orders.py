@@ -335,3 +335,139 @@ def test_get_order_by_id() -> None:
     assert Decimal(data["total"]) == (
         Decimal(data["subtotal"]) + Decimal(data["delivery_fee"])
     )
+
+
+def create_order_for_status_test() -> int:
+    product_id = create_product(
+        "Status Test Product",
+        "20.00",
+    )
+
+    response = client.post(
+        "/api/orders",
+        json={
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 1,
+                }
+            ],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
+        },
+    )
+
+    assert response.status_code == 201
+
+    order_id = response.json()["id"]
+
+    assert isinstance(order_id, int)
+
+    return order_id
+
+
+def test_update_order_status_through_full_lifecycle() -> None:
+    order_id = create_order_for_status_test()
+
+    transitions = [
+        "confirmed",
+        "preparing",
+        "out_of_delivery",
+        "delivered",
+    ]
+
+    for new_status in transitions:
+        response = client.patch(
+            f"/api/orders/{order_id}/status",
+            json={"status": new_status},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["status"] == new_status
+
+    response = client.get(f"/api/orders/{order_id}")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "delivered"
+
+
+def test_cancel_pending_order() -> None:
+    order_id = create_order_for_status_test()
+
+    response = client.patch(
+        f"/api/orders/{order_id}/status",
+        json={"status": "cancelled"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+
+
+def test_reject_invalid_order_status_transition() -> None:
+    order_id = create_order_for_status_test()
+
+    response = client.patch(
+        f"/api/orders/{order_id}/status",
+        json={"status": "delivered"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Invalid status transition: pending -> delivered",
+    }
+
+
+def test_update_status_order_not_found() -> None:
+    response = client.patch(
+        "/api/orders/999999/status",
+        json={"status": "confirmed"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Order 999999 not found",
+    }
+
+
+def test_reject_invalid_order_status() -> None:
+    order_id = create_order_for_status_test()
+
+    response = client.patch(
+        f"/api/orders/{order_id}/status",
+        json={"status": "banana"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_delivered_order_cannot_change_status() -> None:
+    order_id = create_order_for_status_test()
+
+    for new_status in [
+        "confirmed",
+        "preparing",
+        "out_of_delivery",
+        "delivered",
+    ]:
+        response = client.patch(
+            f"/api/orders/{order_id}/status",
+            json={"status": new_status},
+        )
+
+        assert response.status_code == 200
+
+    response = client.patch(
+        f"/api/orders/{order_id}/status",
+        json={"status": "preparing"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Invalid status transition: delivered -> preparing",
+    }
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Invalid status transition: delivered -> preparing",
+    }

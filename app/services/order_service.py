@@ -119,3 +119,52 @@ class OrderService:
                 detail=f"Order {order_id} not found",
             )
         return self._to_response(order)
+
+    ALLOWED_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
+        OrderStatus.PENDING: {
+            OrderStatus.CONFIRMED,
+            OrderStatus.CANCELLED,
+        },
+        OrderStatus.CONFIRMED: {
+            OrderStatus.PREPARING,
+            OrderStatus.CANCELLED,
+        },
+        OrderStatus.PREPARING: {
+            OrderStatus.OUT_OF_DELIVERY,
+            OrderStatus.CANCELLED,
+        },
+        OrderStatus.OUT_OF_DELIVERY: {
+            OrderStatus.DELIVERED,
+        },
+        OrderStatus.DELIVERED: set(),
+        OrderStatus.CANCELLED: set(),
+    }
+
+    def update_status(
+        self, db: Session, order_id: int, new_status: OrderStatus
+    ) -> OrderResponse:
+        order = self.repository.get_by_id(db, order_id)
+
+        if order is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Order {order_id} not found",
+            )
+
+        current_status = OrderStatus(order.status)
+        allowed_statuses = self.ALLOWED_STATUS_TRANSITIONS[current_status]
+
+        if new_status not in allowed_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid status transition: "
+                    f"{current_status.value} -> {new_status.value}"
+                ),
+            )
+
+        order.status = new_status.value
+
+        order = self.repository.update(db, order)
+
+        return self._to_response(order)
