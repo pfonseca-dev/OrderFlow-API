@@ -3,6 +3,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas.order import OrderItemCreate
 from app.services.delivery_service import DeliveryService
 
 client = TestClient(app)
@@ -135,35 +136,91 @@ def test_create_order_with_unavailable_product() -> None:
 
 
 def test_create_order_with_zero_quantity() -> None:
+    product_id = create_product("Zero Quantity Product", "10.00")
+
     response = client.post(
         "/api/orders",
         json={
             "items": [
                 {
-                    "product_id": 1,
+                    "product_id": product_id,
                     "quantity": 0,
                 }
-            ]
+            ],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
         },
     )
 
     assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    assert len(errors) == 1
+    assert errors[0]["loc"] == ["body", "items", 0, "quantity"]
+    assert errors[0]["type"] == "greater_than"
 
 
 def test_create_order_with_negative_quantity() -> None:
+    product_id = create_product("Negative Quantity Product", "10.00")
+
     response = client.post(
         "/api/orders",
         json={
             "items": [
                 {
-                    "product_id": 1,
+                    "product_id": product_id,
                     "quantity": -1,
                 }
-            ]
+            ],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
         },
     )
 
     assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    assert len(errors) == 1
+    assert errors[0]["loc"] == ["body", "items", 0, "quantity"]
+    assert errors[0]["type"] == "greater_than"
+
+
+def test_create_order_with_quantity_above_integer_limit() -> None:
+    product_id = create_product("Quantity Above Integer Limit Product", "10.00")
+
+    response = client.post(
+        "/api/orders",
+        json={
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 2147483648,
+                }
+            ],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
+        },
+    )
+
+    assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    assert len(errors) == 1
+    assert errors[0]["loc"] == ["body", "items", 0, "quantity"]
+    assert errors[0]["type"] == "less_than_equal"
+    assert errors[0]["ctx"]["le"] == 2147483647
+
+
+def test_order_item_accepts_maximum_quantity() -> None:
+    item = OrderItemCreate(product_id=1, quantity=2147483647)
+
+    assert item.quantity == 2147483647
 
 
 def test_create_order_with_empty_items() -> None:
@@ -171,10 +228,19 @@ def test_create_order_with_empty_items() -> None:
         "/api/orders",
         json={
             "items": [],
+            "delivery": {
+                "latitude": "-22.7500",
+                "longitude": "-45.1300",
+            },
         },
     )
 
     assert response.status_code == 422
+
+    errors = response.json()["detail"]
+    assert len(errors) == 1
+    assert errors[0]["loc"] == ["body", "items"]
+    assert errors[0]["type"] == "too_short"
 
 
 def test_create_order_with_invalid_latitude() -> None:
