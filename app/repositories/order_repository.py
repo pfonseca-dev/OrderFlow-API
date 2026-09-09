@@ -27,3 +27,10 @@ class OrderRepository:
 
     def get_by_id(self, db: Session, order_id: int) -> Order | None:
         return db.get(Order, order_id)
+
+    def update(self, db: Session, order: Order) -> Order:
+        db.add(order)
+        db.commit()
+        db.refresh(order)
+
+        return order

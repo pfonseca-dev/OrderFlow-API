@@ -35,3 +35,7 @@ class OrderResponse(BaseModel):
     delivery_distance_km: Decimal
     delivery_fee: Decimal
     total: Decimal
+
+
+class OrderStatusUpdate(BaseModel):
+    status: OrderStatus
